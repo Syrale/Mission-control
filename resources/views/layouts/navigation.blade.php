@@ -1,4 +1,14 @@
-<nav x-data="{ open: false }" class="bg-gray-800 border-b border-gray-700">
+<nav x-data="{ 
+        open: false, 
+        currentView: localStorage.getItem('dashboard_view') || 'cards',
+        setView(val) {
+            this.currentView = val;
+            localStorage.setItem('dashboard_view', val);
+            window.dispatchEvent(new CustomEvent('view-change', { detail: val }));
+        }
+     }" 
+     class="bg-gray-800 border-b border-gray-700">
+    
     <!-- Primary Navigation Menu -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
@@ -6,7 +16,6 @@
                 <!-- Logo -->
                 <div class="shrink-0 flex items-center">
                     <a href="{{ route('dashboard') }}">
-                        <!-- Using a generic white logo or text for now -->
                         <svg class="block h-9 w-auto fill-current text-gray-200" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 100-2 1 1 0 000 2zm7-1a1 1 0 11-2 0 1 1 0 012 0zm-7.536 5.879a1 1 0 001.415 0 3 3 0 014.242 0 1 1 0 001.415-1.415 3 3 0 00-4.242 0 1 1 0 00-1.415 1.415z" clip-rule="evenodd" />
                         </svg>
@@ -21,13 +30,12 @@
                 </div>
             </div>
 
-                        <!-- Settings Dropdown -->
+            <!-- Settings Dropdown -->
             <div class="hidden sm:flex sm:items-center sm:ml-6">
                 <x-dropdown align="right" width="48">
                     <x-slot name="trigger">
                         <button class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-300 bg-gray-800 hover:text-white focus:outline-none transition ease-in-out duration-150">
                             <div>{{ Auth::user()->name }}</div>
-
                             <div class="ml-1">
                                 <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
                                     <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
@@ -37,9 +45,31 @@
                     </x-slot>
 
                     <x-slot name="content">
-                        <!-- We use a wrapper div to force the dark background -->
                         <div class="bg-gray-700 rounded-md ring-1 ring-black ring-opacity-5 py-1">
                             
+                            <!-- VIEW SETTINGS HEADER -->
+                            <div class="block px-4 py-2 text-xs text-gray-400 uppercase font-bold tracking-wider border-b border-gray-600 mb-1">
+                                Layout
+                            </div>
+
+                            <!-- View: Cards -->
+                            <button @click="setView('cards')"
+                                    class="w-full text-left block px-4 py-2 text-sm hover:bg-gray-600 transition flex justify-between items-center"
+                                    :class="currentView === 'cards' ? 'text-indigo-300 font-bold bg-gray-800' : 'text-gray-200'">
+                                <span>Grid Cards</span>
+                                <svg x-show="currentView === 'cards'" class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                            </button>
+
+                            <!-- View: List -->
+                            <button @click="setView('list')"
+                                    class="w-full text-left block px-4 py-2 text-sm hover:bg-gray-600 transition flex justify-between items-center"
+                                    :class="currentView === 'list' ? 'text-indigo-300 font-bold bg-gray-800' : 'text-gray-200'">
+                                <span>Compact List</span>
+                                <svg x-show="currentView === 'list'" class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                            </button>
+
+                            <div class="border-t border-gray-600 my-1"></div>
+
                             <!-- Profile Link -->
                             <a href="{{ route('profile.edit') }}" 
                                class="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-600 hover:text-white transition">
@@ -60,7 +90,7 @@
                 </x-dropdown>
             </div>
 
-            <!-- Hamburger (Mobile Menu Button) -->
+            <!-- Hamburger -->
             <div class="-mr-2 flex items-center sm:hidden">
                 <button @click="open = ! open" class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:bg-gray-100 focus:text-gray-500 transition duration-150 ease-in-out">
                     <svg class="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
@@ -72,7 +102,7 @@
         </div>
     </div>
 
-    <!-- Responsive Navigation Menu (Mobile) -->
+    <!-- Responsive Navigation Menu -->
     <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
         <div class="pt-2 pb-3 space-y-1">
             <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')" class="text-gray-300 hover:bg-gray-700 hover:text-white">
@@ -82,9 +112,19 @@
 
         <!-- Responsive Settings Options -->
         <div class="pt-4 pb-1 border-t border-gray-700">
-            <div class="px-4">
+            <div class="px-4 mb-2">
                 <div class="font-medium text-base text-gray-200">{{ Auth::user()->name }}</div>
                 <div class="font-medium text-sm text-gray-500">{{ Auth::user()->email }}</div>
+            </div>
+
+            <!-- MOBILE VIEW TOGGLE -->
+            <div class="mt-2 mb-2 px-2 grid grid-cols-2 gap-2">
+                <button @click="setView('cards')" class="text-center py-2 text-xs rounded border border-gray-600 text-gray-300" :class="currentView === 'cards' ? 'bg-indigo-900 border-indigo-500 text-white' : ''">
+                    Grid Cards
+                </button>
+                <button @click="setView('list')" class="text-center py-2 text-xs rounded border border-gray-600 text-gray-300" :class="currentView === 'list' ? 'bg-indigo-900 border-indigo-500 text-white' : ''">
+                    Compact List
+                </button>
             </div>
 
             <div class="mt-3 space-y-1">
@@ -92,13 +132,10 @@
                     {{ __('Profile') }}
                 </x-responsive-nav-link>
 
-                <!-- Authentication -->
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
-
                     <x-responsive-nav-link :href="route('logout')"
-                            onclick="event.preventDefault();
-                                        this.closest('form').submit();" class="text-gray-300 hover:bg-gray-700 hover:text-white">
+                            onclick="event.preventDefault(); this.closest('form').submit();" class="text-gray-300 hover:bg-gray-700 hover:text-white">
                         {{ __('Log Out') }}
                     </x-responsive-nav-link>
                 </form>

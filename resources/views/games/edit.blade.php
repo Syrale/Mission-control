@@ -12,13 +12,37 @@
                         Editing protocols for <span class="font-semibold text-indigo-500">{{ $game->name }}</span>
                     </p>
                 </div>
-                <a href="{{ route('dashboard') }}" class="inline-flex items-center px-4 py-2 bg-gray-200 dark:bg-gray-700 border border-transparent rounded-md font-semibold text-xs text-gray-700 dark:text-gray-300 uppercase tracking-widest hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none transition ease-in-out duration-150">
+                <a href="{{ route('games.show', $game) }}" class="inline-flex items-center px-4 py-2 bg-gray-200 dark:bg-gray-700 border border-transparent rounded-md font-semibold text-xs text-gray-700 dark:text-gray-300 uppercase tracking-widest hover:bg-gray-300 dark:hover:bg-gray-600 focus:outline-none transition ease-in-out duration-150">
                     &larr; Back to Mission Control
                 </a>
             </div>
 
-            <!-- EDIT FORM -->
-            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg border border-gray-200 dark:border-gray-700">
+            <!-- EDIT FORM WITH LIVE PREVIEW LOGIC -->
+            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg border border-gray-200 dark:border-gray-700"
+                 x-data="{ 
+                    tz: '{{ old('timezone', $game->timezone) }}', 
+                    resetHour: '{{ old('reset_hour', $game->reset_hour) }}',
+                    serverTimeNow: '--:--',
+                    localResetTime: 'Calculating...',
+                    
+                    updateCalc() {
+                        let now = new Date();
+                        try {
+                            if (this.tz.includes(':')) {
+                                this.serverTimeNow = 'UTC ' + this.tz; 
+                                this.localResetTime = 'See Dashboard after save';
+                            } else {
+                                let options = { timeZone: this.tz, hour: 'numeric', minute: '2-digit', hour12: true };
+                                this.serverTimeNow = new Intl.DateTimeFormat('en-US', options).format(now);
+                                this.localResetTime = 'Reset happens when Server hits ' + this.resetHour + ':00'; 
+                            }
+                        } catch (e) {
+                            this.serverTimeNow = 'Invalid Timezone';
+                        }
+                    }
+                 }"
+                 x-init="updateCalc(); setInterval(() => updateCalc(), 1000);">
+                 
                 <div class="p-6 text-gray-900 dark:text-gray-100">
                     
                     <form action="{{ route('games.update', $game) }}" method="POST" class="space-y-6">
@@ -38,52 +62,76 @@
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- TIMEZONE SECTION -->
+                        <div class="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-lg border border-indigo-100 dark:border-indigo-800">
+                            <h3 class="text-indigo-700 dark:text-indigo-300 font-bold text-sm mb-3 uppercase">Time Configuration</h3>
                             
-                            <!-- TIMEZONE (With Manual Offsets) -->
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Server Timezone</label>
-                                <select name="timezone" 
-                                        class="block w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                    
-                                    <optgroup label="Major Timezones">
-                                        @foreach(config('timezones.list') as $tz => $label)
-                                            <option value="{{ $tz }}" {{ (old('timezone', $game->timezone) == $tz) ? 'selected' : '' }}>
-                                                {{ $label }}
-                                            </option>
-                                        @endforeach
-                                    </optgroup>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <!-- Timezone Selector -->
+                                <div>
+                                    <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Server Timezone</label>
+                                    <select name="timezone" x-model="tz" @change="updateCalc()"
+                                            class="block w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                                        
+                                        <optgroup label="Major Timezones">
+                                            @foreach(config('timezones.list') as $tz => $label)
+                                                <option value="{{ $tz }}">{{ $label }}</option>
+                                            @endforeach
+                                        </optgroup>
 
-                                    <optgroup label="Manual Offsets">
-                                        @foreach(range(-12, 14) as $offset)
-                                            @php 
-                                                $sign = $offset < 0 ? '-' : '+';
-                                                $val = sprintf("%s%02d:00", $sign, abs($offset));
-                                                $label = "UTC $val";
-                                            @endphp
-                                            <option value="{{ $val }}" {{ (old('timezone', $game->timezone) == $val) ? 'selected' : '' }}>
-                                                {{ $label }}
-                                            </option>
+                                        <optgroup label="Manual Offsets">
+                                            @foreach(range(-12, 14) as $offset)
+                                                @php 
+                                                    $sign = $offset < 0 ? '-' : '+';
+                                                    $val = sprintf("%s%02d:00", $sign, abs($offset));
+                                                    $label = "UTC $val";
+                                                @endphp
+                                                <option value="{{ $val }}">{{ $label }}</option>
+                                            @endforeach
+                                        </optgroup>
+                                    </select>
+                                </div>
+
+                                <!-- Reset Hour -->
+                                <div>
+                                    <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Daily Reset (Server Time)</label>
+                                    <select name="reset_hour" x-model="resetHour" @change="updateCalc()"
+                                            class="block w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 font-mono text-sm">
+                                        @foreach(range(0, 23) as $h)
+                                            @php $display = Carbon\Carbon::createFromTime($h, 0)->format('H:00 (g:00 A)'); @endphp
+                                            <option value="{{ $h }}">{{ $display }}</option>
                                         @endforeach
-                                    </optgroup>
-                                </select>
+                                    </select>
+                                </div>
                             </div>
 
-                            <!-- RESET HOUR -->
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Daily Reset Hour</label>
-                                <select name="reset_hour" 
-                                        class="block w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 font-mono">
-                                    @foreach(range(0, 23) as $hour)
-                                        @php 
-                                            $displayTime = Carbon\Carbon::createFromTime($hour, 0)->format('H:00 (g:00 A)');
-                                        @endphp
-                                        <option value="{{ $hour }}" {{ (old('reset_hour', $game->reset_hour) == $hour) ? 'selected' : '' }}>
-                                            {{ $displayTime }}
-                                        </option>
-                                    @endforeach
-                                </select>
+                            <!-- LIVE PREVIEW BOX -->
+                            <div class="mt-4 p-3 bg-white dark:bg-gray-800 rounded border border-indigo-200 dark:border-indigo-700 shadow-sm flex items-center justify-between">
+                                
+                                <!-- Server Time Check -->
+                                <div>
+                                    <p class="text-[10px] uppercase font-bold text-gray-500 tracking-wider">Current Server Time</p>
+                                    <p class="text-xl font-mono font-bold text-indigo-600 dark:text-indigo-400" x-text="serverTimeNow">
+                                        --:--
+                                    </p>
+                                </div>
+
+                                <!-- Arrow -->
+                                <div class="text-gray-400">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                                </div>
+
+                                <!-- Reset Confirmation -->
+                                <div class="text-right">
+                                    <p class="text-[10px] uppercase font-bold text-gray-500 tracking-wider">Scheduled Reset</p>
+                                    <p class="text-sm font-bold text-gray-700 dark:text-gray-300">
+                                        <span x-text="resetHour"></span>:00 Server Time
+                                    </p>
+                                </div>
                             </div>
+                            <p class="text-[10px] text-gray-500 mt-2 text-center">
+                                * Verify this matches your in-game clock.
+                            </p>
                         </div>
 
                         <div>

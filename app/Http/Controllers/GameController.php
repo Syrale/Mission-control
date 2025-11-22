@@ -96,8 +96,7 @@ class GameController extends Controller
         $game->update($validated);
         
         // Redirect back to dashboard or show page
-        return redirect()->route('dashboard')
-            ->with('status', 'Game updated successfully!');
+        return redirect()->route('games.show', $game)->with('success', 'Game updated successfully!');
     }
 
     public function destroy(Game $game)

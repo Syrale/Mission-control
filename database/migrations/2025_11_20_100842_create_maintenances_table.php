@@ -15,8 +15,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('game_id')->constrained()->onDelete('cascade');
             $table->string('title'); // e.g. "v2.0 Update"
-            $table->dateTime('start_time');
-            $table->dateTime('end_time');
+            $table->dateTime('start_at');
+            $table->dateTime('end_at');
             $table->timestamps();
         });
     }

@@ -17,8 +17,44 @@
                 </a>
             </div>
 
-            <!-- FORM -->
-            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg border border-gray-200 dark:border-gray-700">
+            <!-- FORM WITH ALPINE LOGIC -->
+            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg border border-gray-200 dark:border-gray-700"
+                 x-data="{ 
+                    tz: '{{ old('timezone', 'UTC') }}', 
+                    resetHour: '{{ old('reset_hour', 4) }}',
+                    serverTimeNow: '--:--',
+                    localResetTime: 'Calculating...',
+                    
+                    updateCalc() {
+                        // 1. Get Current Time
+                        let now = new Date();
+
+                        // 2. Calculate 'Server Time' right now
+                        // We use native Intl API to convert browser time to selected timezone
+                        try {
+                            // Handle Manual Offsets (e.g. '+08:00') vs Named Timezones (e.g. 'Asia/Tokyo')
+                            // Note: Native JS struggles with manual offsets like '+05:00' in Intl.DateTimeFormat
+                            // So we only show accurate preview for Named Timezones.
+                            if (this.tz.includes(':')) {
+                                this.serverTimeNow = 'UTC ' + this.tz; // Just show label for manual
+                                this.localResetTime = 'See Dashboard after save';
+                            } else {
+                                let options = { timeZone: this.tz, hour: 'numeric', minute: '2-digit', hour12: true };
+                                this.serverTimeNow = new Intl.DateTimeFormat('en-US', options).format(now);
+
+                                // 3. Estimate Local Reset Time
+                                // This is complex in pure JS, so we simply show the Server Time check
+                                // which is usually enough for users to verify they picked the right one.
+                                this.localResetTime = 'Reset happens when Server hits ' + this.resetHour + ':00'; 
+                            }
+                        } catch (e) {
+                            this.serverTimeNow = 'Invalid Timezone';
+                        }
+                    }
+                 }"
+                 x-init="updateCalc(); setInterval(() => updateCalc(), 1000);"> 
+                 <!-- We run updateCalc every second so the clock ticks! -->
+                 
                 <div class="p-6 text-gray-900 dark:text-gray-100">
                     
                     @if ($errors->any())
@@ -48,59 +84,78 @@
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- TIMEZONE SECTION -->
+                        <div class="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-lg border border-indigo-100 dark:border-indigo-800">
+                            <h3 class="text-indigo-700 dark:text-indigo-300 font-bold text-sm mb-3 uppercase">Time Configuration</h3>
                             
-                            <!-- IMPROVED TIMEZONE SELECTOR -->
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Server Timezone</label>
-                                <select name="timezone" 
-                                        class="block w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                    
-                                    <!-- 1. Standard Named Timezones (from config) -->
-                                    <optgroup label="Major Timezones">
-                                        @foreach(config('timezones.list') as $tz => $label)
-                                            <option value="{{ $tz }}" {{ (old('timezone', 'UTC') == $tz) ? 'selected' : '' }}>
-                                                {{ $label }}
-                                            </option>
-                                        @endforeach
-                                    </optgroup>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <!-- Timezone Selector -->
+                                <div>
+                                    <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Server Timezone</label>
+                                    <select name="timezone" x-model="tz" @change="updateCalc()"
+                                            class="block w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                                        
+                                        <optgroup label="Major Timezones">
+                                            @foreach(config('timezones.list') as $tz => $label)
+                                                <option value="{{ $tz }}">{{ $label }}</option>
+                                            @endforeach
+                                        </optgroup>
 
-                                    <!-- 2. Manual Offsets (For lazy people like us!) -->
-                                    <optgroup label="Manual Offsets">
-                                        @foreach(range(-12, 14) as $offset)
-                                            @php 
-                                                // Format: "+05:00" or "-07:00"
-                                                $sign = $offset < 0 ? '-' : '+';
-                                                $abs = abs($offset);
-                                                $val = sprintf("%s%02d:00", $sign, $abs); // e.g. -07:00
-                                                $label = "UTC $val";
-                                            @endphp
-                                            <option value="{{ $val }}" {{ (old('timezone') == $val) ? 'selected' : '' }}>
-                                                {{ $label }}
-                                            </option>
-                                        @endforeach
-                                    </optgroup>
+                                        <optgroup label="Manual Offsets">
+                                            @foreach(range(-12, 14) as $offset)
+                                                @php 
+                                                    $sign = $offset < 0 ? '-' : '+';
+                                                    $val = sprintf("%s%02d:00", $sign, abs($offset));
+                                                    $label = "UTC $val";
+                                                @endphp
+                                                <option value="{{ $val }}">{{ $label }}</option>
+                                            @endforeach
+                                        </optgroup>
+                                    </select>
+                                </div>
 
-                                </select>
-                                <p class="text-xs text-gray-500 mt-1">If you don't know the city, just pick "UTC -07:00".</p>
+                                <!-- Reset Hour -->
+                                <div>
+                                    <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Daily Reset (Server Time)</label>
+                                    <select name="reset_hour" x-model="resetHour" @change="updateCalc()"
+                                            class="block w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 font-mono text-sm">
+                                        @foreach(range(0, 23) as $h)
+                                            @php $display = Carbon\Carbon::createFromTime($h, 0)->format('H:00 (g:00 A)'); @endphp
+                                            <option value="{{ $h }}">{{ $display }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
                             </div>
 
-                            <!-- Reset Hour -->
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Daily Reset Hour</label>
-                                <select name="reset_hour" 
-                                        class="block w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 font-mono">
-                                    @foreach(range(0, 23) as $hour)
-                                        @php 
-                                            $displayTime = Carbon\Carbon::createFromTime($hour, 0)->format('H:00 (g:00 A)');
-                                        @endphp
-                                        <option value="{{ $hour }}" {{ (old('reset_hour', 4) == $hour) ? 'selected' : '' }}>
-                                            {{ $displayTime }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                                <p class="text-xs text-gray-500 mt-1">Server time, not local.</p>
+                            <!-- HERE IS THE MISSING LIVE PREVIEW BOX -->
+                            <div class="mt-4 p-3 bg-white dark:bg-gray-800 rounded border border-indigo-200 dark:border-indigo-700 shadow-sm flex items-center justify-between">
+                                
+                                <!-- Server Time Check -->
+                                <div>
+                                    <p class="text-[10px] uppercase font-bold text-gray-500 tracking-wider">Current Server Time</p>
+                                    <p class="text-xl font-mono font-bold text-indigo-600 dark:text-indigo-400" x-text="serverTimeNow">
+                                        --:--
+                                    </p>
+                                </div>
+
+                                <!-- Arrow -->
+                                <div class="text-gray-400">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                                </div>
+
+                                <!-- Reset Confirmation -->
+                                <div class="text-right">
+                                    <p class="text-[10px] uppercase font-bold text-gray-500 tracking-wider">Scheduled Reset</p>
+                                    <p class="text-sm font-bold text-gray-700 dark:text-gray-300">
+                                        <span x-text="resetHour"></span>:00 Server Time
+                                    </p>
+                                </div>
                             </div>
+                            
+                            <p class="text-[10px] text-gray-500 mt-2 text-center">
+                                * Check your in-game clock. If "Current Server Time" matches, you are good to go.
+                            </p>
+
                         </div>
 
                         <!-- Notes -->
