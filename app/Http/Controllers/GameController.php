@@ -33,8 +33,7 @@ class GameController extends Controller
             'name' => 'required|string|max:255',
             'developer' => 'nullable|string|max:255',
             
-            // FIXED: Changed from strict Rule::in(...) to just 'string'
-            // This allows manual offsets like "-07:00" to pass validation
+            // Allows manual offsets like "-07:00"
             'timezone' => 'required|string',
             
             'reset_hour' => 'required|integer|min:0|max:23', 
@@ -79,23 +78,37 @@ class GameController extends Controller
             abort(403);
         }
 
-        // 1. VALIDATE FIRST
+        // 1. VALIDATE
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'developer' => 'nullable|string|max:255',
-            
-            // FIXED: Changed from strict Rule::in(...) to just 'string'
-            // This allows manual offsets like "-07:00" to pass validation
             'timezone' => 'required|string',
-            
             'reset_hour' => 'required|integer|min:0|max:23',
             'notes' => 'nullable|string',
         ]);
 
-        // 2. UPDATE AFTER VALIDATION PASSES
-        $game->update($validated);
+        // 2. FILL ATTRIBUTES (Don't save yet)
+        $game->fill($validated);
         
-        // Redirect back to dashboard or show page
+        // 3. CHECK IF TIME CHANGED
+        // We need to know if timezone or reset_hour changed so we can update tasks
+        $timeSettingsChanged = $game->isDirty(['timezone', 'reset_hour']);
+
+        // 4. SAVE THE GAME
+        $game->save();
+        
+        // 5. RECALCULATE TASKS IF NEEDED
+        if ($timeSettingsChanged) {
+            // Load tasks to ensure we have them, then loop
+            $game->tasks->each(function ($task) {
+                // Ensure your Task model has this method!
+                if (method_exists($task, 'recalculateDueAt')) {
+                    $task->recalculateDueAt();
+                }
+            });
+        }
+
+        // Redirect back to show page
         return redirect()->route('games.show', $game)->with('success', 'Game updated successfully!');
     }
 

@@ -17,31 +17,66 @@
                 </a>
             </div>
 
-            <!-- EDIT FORM WITH LIVE PREVIEW LOGIC -->
+            <!-- EDIT FORM WITH SMART TIME CALCULATOR -->
             <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg border border-gray-200 dark:border-gray-700"
                  x-data="{ 
                     tz: '{{ old('timezone', $game->timezone) }}', 
-                    resetHour: '{{ old('reset_hour', $game->reset_hour) }}',
-                    serverTimeNow: '--:--',
-                    localResetTime: 'Calculating...',
+                    resetHour: {{ old('reset_hour', $game->reset_hour) }},
+                    serverTimeDisplay: '--:--',
+                    localResetDisplay: '--:--',
                     
-                    updateCalc() {
-                        let now = new Date();
+                    init() {
+                        this.calculate();
+                        setInterval(() => this.calculate(), 1000);
+                    },
+
+                    calculate() {
+                        const now = new Date();
+
+                        // 1. GET SERVER TIME
+                        // We use the browser's Intl API to get the time string in the target timezone
+                        let serverTimeStr;
                         try {
-                            if (this.tz.includes(':')) {
-                                this.serverTimeNow = 'UTC ' + this.tz; 
-                                this.localResetTime = 'See Dashboard after save';
-                            } else {
-                                let options = { timeZone: this.tz, hour: 'numeric', minute: '2-digit', hour12: true };
-                                this.serverTimeNow = new Intl.DateTimeFormat('en-US', options).format(now);
-                                this.localResetTime = 'Reset happens when Server hits ' + this.resetHour + ':00'; 
-                            }
+                            serverTimeStr = now.toLocaleTimeString('en-US', { timeZone: this.tz, hour12: false, hour: '2-digit', minute: '2-digit' });
                         } catch (e) {
-                            this.serverTimeNow = 'Invalid Timezone';
+                            this.serverTimeDisplay = 'Invalid Timezone';
+                            this.localResetDisplay = '---';
+                            return;
                         }
+                        this.serverTimeDisplay = serverTimeStr;
+
+                        // 2. CALCULATE LOCAL RESET TIME
+                        // We need to find the diff between 'Now Local' and 'Now Server'
+                        // Then apply that diff to the resetHour
+                        
+                        // Get server hour integer (0-23)
+                        const serverHour = parseInt(serverTimeStr.split(':')[0]);
+                        const localHour = now.getHours();
+                        
+                        // Calculate offset (Handle wrapping around midnight)
+                        let diff = localHour - serverHour;
+                        // If diff is like -15 (e.g. server 20:00, local 05:00), normalize it
+                        // This is a rough approximation suitable for display
+                        
+                        // BETTER METHOD: Create a synthetic date for the Reset
+                        // 1. Create a date string for 'Today Reset' in Server Time
+                        // Since JS Date setters are local, we have to do a bit of a dance.
+                        // The easiest visual hack without libraries:
+                        
+                        let calculatedLocalHour = parseInt(this.resetHour) + diff;
+                        
+                        // Normalize 24h format
+                        if (calculatedLocalHour >= 24) calculatedLocalHour -= 24;
+                        if (calculatedLocalHour < 0) calculatedLocalHour += 24;
+
+                        // Format nicely
+                        const ampm = calculatedLocalHour >= 12 ? 'PM' : 'AM';
+                        const displayHour = calculatedLocalHour % 12 || 12;
+                        
+                        this.localResetDisplay = displayHour + ':00 ' + ampm;
                     }
                  }"
-                 x-init="updateCalc(); setInterval(() => updateCalc(), 1000);">
+                 x-init="init()">
                  
                 <div class="p-6 text-gray-900 dark:text-gray-100">
                     
@@ -70,7 +105,7 @@
                                 <!-- Timezone Selector -->
                                 <div>
                                     <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Server Timezone</label>
-                                    <select name="timezone" x-model="tz" @change="updateCalc()"
+                                    <select name="timezone" x-model="tz" @change="calculate()"
                                             class="block w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
                                         
                                         <optgroup label="Major Timezones">
@@ -95,7 +130,7 @@
                                 <!-- Reset Hour -->
                                 <div>
                                     <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Daily Reset (Server Time)</label>
-                                    <select name="reset_hour" x-model="resetHour" @change="updateCalc()"
+                                    <select name="reset_hour" x-model="resetHour" @change="calculate()"
                                             class="block w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 font-mono text-sm">
                                         @foreach(range(0, 23) as $h)
                                             @php $display = Carbon\Carbon::createFromTime($h, 0)->format('H:00 (g:00 A)'); @endphp
@@ -106,32 +141,35 @@
                             </div>
 
                             <!-- LIVE PREVIEW BOX -->
-                            <div class="mt-4 p-3 bg-white dark:bg-gray-800 rounded border border-indigo-200 dark:border-indigo-700 shadow-sm flex items-center justify-between">
+                            <div class="mt-4 flex flex-col md:flex-row gap-4">
                                 
-                                <!-- Server Time Check -->
-                                <div>
-                                    <p class="text-[10px] uppercase font-bold text-gray-500 tracking-wider">Current Server Time</p>
-                                    <p class="text-xl font-mono font-bold text-indigo-600 dark:text-indigo-400" x-text="serverTimeNow">
-                                        --:--
-                                    </p>
+                                <!-- Server Status -->
+                                <div class="flex-1 bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                                    <div>
+                                        <p class="text-[10px] uppercase font-bold text-gray-500 tracking-wider">Game Server Time</p>
+                                        <p class="text-xl font-mono font-bold text-indigo-600 dark:text-indigo-400" x-text="serverTimeDisplay">--:--</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-[10px] uppercase font-bold text-gray-500 tracking-wider">Reset Set To</p>
+                                        <p class="text-sm font-bold text-gray-700 dark:text-gray-300">
+                                            <span x-text="resetHour + ':00'"></span>
+                                        </p>
+                                    </div>
                                 </div>
 
-                                <!-- Arrow -->
-                                <div class="text-gray-400">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                                <!-- Conversion Arrow -->
+                                <div class="flex items-center justify-center text-gray-400">
+                                    <svg class="w-6 h-6 md:rotate-0 rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
                                 </div>
 
-                                <!-- Reset Confirmation -->
-                                <div class="text-right">
-                                    <p class="text-[10px] uppercase font-bold text-gray-500 tracking-wider">Scheduled Reset</p>
-                                    <p class="text-sm font-bold text-gray-700 dark:text-gray-300">
-                                        <span x-text="resetHour"></span>:00 Server Time
-                                    </p>
+                                <!-- Local Status -->
+                                <div class="flex-1 bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700 flex flex-col justify-center">
+                                    <p class="text-[10px] uppercase font-bold text-gray-500 tracking-wider">Your Local Time</p>
+                                    <p class="text-xl font-mono font-bold text-green-600 dark:text-green-400" x-text="localResetDisplay">--:--</p>
+                                    <p class="text-[10px] text-gray-400 leading-tight mt-1">When server hits reset, it will be this time for you.</p>
                                 </div>
+
                             </div>
-                            <p class="text-[10px] text-gray-500 mt-2 text-center">
-                                * Verify this matches your in-game clock.
-                            </p>
                         </div>
 
                         <div>

@@ -15,7 +15,7 @@ class GameEvent extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['game_id', 'name', 'start_time', 'end_time'];
+    protected $fillable = ['game_id', 'name', 'type', 'start_time', 'end_time'];
 
     protected $casts = [
         'start_time' => 'datetime',

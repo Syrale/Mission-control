@@ -2,12 +2,80 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.3.0] - 2025-05-22
+---
 
+## [0.5.0] - 2025-11-24
+### Refactored
+- **Dashboard Architecture:** Major cleanup of the Dashboard View.
+  - **Separation of Concerns:** Moved all complex calculation logic (sorting, alerts, schedule generation) out of Blade files and into the `DashboardController`.
+  - **Modular Views:** Split the massive `dashboard.blade.php` file into a clean Index file and reusable Partials (`partials/header`, `alerts`, `games-grid`, `schedule`, etc.).
+  - **Performance:** Improved rendering efficiency by pre-calculating calendar data in the Controller rather than looping inside the View.
+
+### Internal
+- **Code Quality:** Adopted "Level 2" Laravel Industry Standards by utilizing View Composers/Controller Data Preparation instead of logic-heavy Blade templates.
+
+---
+
+## [0.4.1] - 2025-11-24 (Hotfix)
+### Fixed
+- **Database Schema:** Added missing `next_due_at` column to `tasks` table. This fixes the `General error: 1` crash when creating new tasks.
+- **Task Recalculation:** Tasks now automatically recalculate their due dates when Game timezone or reset hour settings are updated.
+- **Stale Timestamps:** Fixed issue where changing a game's reset time (e.g., from 04:00 to 20:00) would not update existing task deadlines, causing incorrect UTC times to display on the dashboard.
+
+### Changed
+- **Task Model:** Added `recalculateDueAt()` method to dynamically update task due dates based on current game settings.
+- **GameController:** Now detects changes to `timezone` or `reset_hour` and triggers automatic task recalculation on save.
+- **Task Fillable:** Added `next_due_at` and `last_reset_date` to the `$fillable` array for proper mass assignment.
+
+---
+
+## [0.4.0] - 2025-11-24
+### Added
+- **Missed Tasks Alert:** Red notification box now appears when daily/weekly tasks remain incomplete past their reset time.
+- **Maintenance Countdown:** Game cards now display a live countdown timer showing time remaining until maintenance ends.
+- **Pending Tasks Warning:** During maintenance, cards display a warning badge showing how many incomplete tasks are waiting.
+- **Enhanced Maintenance UI:** Maintenance screens now show both countdown and pending task count in both Grid and List views.
+- **Smart Time Converter (Settings Page):** The Game Configuration screen now displays real-time calculations showing what the Server Reset time will be in your local timezone.
+
+### Changed
+- **Missed Tasks Alert:** Now collapsible and dismissible. Users can minimize the alert with a close button. Clicking the header expands/collapses the list.
+- **Time Display Logic (Settings):** Replaced static "Reset happens at X:00" with dynamic calculation showing "When server hits 4:00, it will be 9:00 PM for you."
+- **Improved Clarity:** Added timezone offset calculations to prevent confusion between Server Time and Local Time.
+
+### Fixed
+- **Missed Tasks Detection:** Fixed logic to properly detect overdue tasks by comparing current time against today's reset time (not next reset).
+- **Timezone Handling:** Improved missed task detection to respect game-specific timezones.
+- **Settings Page UX:** Fixed confusing time display where reset hour just echoed the input value without showing local conversion.
+
+---
+
+## [0.3.2] - 2025-05-23 (Hotfix)
+### Fixed
+- **Database Schema:** Added missing `type` column to `game_events` table via migration. This fixes the `General error: 1` crash when creating new events.
+- **Refinement:** Existing events will default to `type = 'event'` to prevent data inconsistencies.
+
+---
+
+## [0.3.1] - 2025-05-23
+### Added
+- **Tiered Alert System:** Completely revamped the "Upcoming Events" section into three distinct priority tiers:
+  - **Focus/Critical:** (< 6 Hours) Red, pulsing UI for immediate deadlines.
+  - **Urgent:** (< 24 Hours) Amber UI for events ending today.
+  - **Upcoming:** (< 3 Days) Blue list view for planning ahead.
+- **Event UI:** Added distinct icons (Fire, Hourglass, Calendar) to differentiate alert tiers.
+- **Animation:** Added "Pulse" animation to critical event alerts to draw attention.
+
+### Fixed
+- **Event Logic:** Fixed a bug where "1 week left" events appeared in critical alerts by switching date comparison logic from `diffInHours` to `lte` (Less Than or Equal).
+- **Model Security:** Added `type` to the `GameEvent` model's `$fillable` array.
+
+---
+
+## [0.3.0] - 2025-05-22
 ### Added
 - **Dual Timezone Display:** Tasks on the dashboard now display both Server Time (UTC) and the user's Local Browser Time simultaneously.
 - **Dashboard Layouts:** Added a new "Grid / Card" view for games alongside the existing "List / Accordion" view.
-- **View Preferences:** Users can now toggle between "Grid Cards" and "Compact List" modes. Preference is saved to local storage.
+- **View Preferences:** Users can now toggle between "Grid Cards", "Compact List", and "Calendar" modes. Preference is saved to local storage.
 - **Visual Alerts:**
   - Added **Blinking/Pulse animation** to Game Cards (Grid) and Rows (List) when a game is in Active Maintenance.
   - Added **Amber/Orange styling** to make maintenance mode immediately obvious.
@@ -49,6 +117,8 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - Fixed games in maintenance disappearing from dashboard sorting.
 - Fixed "Overdue" calculation logic.
+
+---
 
 ## [0.1.0] - 2023-10-20
 ### Initial Release

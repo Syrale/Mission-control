@@ -10,7 +10,21 @@ class Task extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['game_id', 'name', 'type', 'is_completed', 'reset_hour'];
+    protected $fillable = [
+        'game_id', 
+        'name', 
+        'type', 
+        'is_completed', 
+        'reset_hour', 
+        'next_due_at', 
+        'last_reset_date',
+        'repeat_days' // Ensure this is here if you use loops
+    ];
+
+    protected $casts = [
+        'next_due_at' => 'datetime',
+        'last_reset_date' => 'datetime',
+    ];
 
     public function game()
     {
@@ -148,5 +162,45 @@ class Task extends Model
 
         // Default fallback (shouldn't happen for valid types)
         return null;
+    }
+
+    /**
+     * Recalculate and SAVE the persistent next_due_at column.
+     * Call this when Game settings change.
+     */
+    public function recalculateDueAt()
+    {
+        // 1. Get Game Settings
+        $timezone = $this->game->timezone ?? 'UTC';
+        $resetHour = $this->game->reset_hour ?? 0;
+        
+        $now = Carbon::now($timezone);
+        $target = null;
+
+        // 2. Calculate based on Type
+        if ($this->type === 'daily') {
+            $target = $now->copy()->startOfDay()->addHours($resetHour);
+            if ($now->gte($target)) {
+                $target->addDay();
+            }
+        }
+        elseif ($this->type === 'weekly') {
+            $target = $now->copy()->startOfWeek()->addHours($resetHour);
+            if ($now->gte($target)) {
+                $target->addWeek();
+            }
+        }
+        elseif ($this->type === 'loop' && $this->repeat_days && $this->last_reset_date) {
+             // For loops, base it off the last reset
+             $target = $this->last_reset_date->copy()->addDays($this->repeat_days);
+        }
+        
+        // 3. Save changes if we found a target
+        if ($target) {
+            // Important: Convert back to UTC before saving if your DB stores in UTC
+            // But typically Laravel casts handle this.
+            $this->next_due_at = $target;
+            $this->save();
+        }
     }
 }
