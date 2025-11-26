@@ -1,6 +1,4 @@
 <x-app-layout>
-    <!-- ❌ NO HEADER SLOT HERE (Removes the double bar) ❌ -->
-
     <div class="py-12">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
 
@@ -206,6 +204,7 @@
                         
                         <div x-show="open" class="px-4 pb-4 border-t border-gray-700 pt-4" x-transition>
                             <div class="space-y-2 mb-4">
+                            
                                 @foreach($game->maintenances as $maintenance)
                                     @if($maintenance->end_at->isFuture())
                                         <div class="bg-red-900/20 border border-red-800 p-2 rounded text-xs relative group">
@@ -247,7 +246,42 @@
                         </div>
                     </div>
 
+                    <!-- 4. NOTES / SCRATCHPAD -->
+                    <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg border border-gray-200 dark:border-gray-700" x-data="{ open: false }">
+                        <button @click="open = !open" class="w-full flex justify-between items-center p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                            <span class="font-bold text-yellow-500">📝 Notes</span>
+                            <svg class="w-5 h-5 text-gray-500 transform transition-transform duration-200" :class="{'rotate-180': open}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                        
+                        <div x-show="open" class="p-4 border-t border-gray-700" x-transition>
+                            <form action="{{ route('games.update', $game) }}" method="POST">
+                                @csrf
+                                @method('PATCH')
+                                
+                                {{-- Hidden Inputs to bypass validation if your Controller requires name/timezone --}}
+                                <input type="hidden" name="name" value="{{ $game->name }}">
+                                <input type="hidden" name="timezone" value="{{ $game->timezone }}">
+                                <input type="hidden" name="reset_hour" value="{{ $game->reset_hour }}">
+
+                                <label class="sr-only">Game Notes</label>
+                                <textarea 
+                                    name="notes" 
+                                    rows="6" 
+                                    class="w-full rounded-md border-gray-700 bg-gray-900 text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm font-mono"
+                                    placeholder="Write farm routes, resource locations, or to-do lists here..."
+                                >{{ $game->notes }}</textarea>
+
+                                <div class="flex justify-end mt-2">
+                                    <button type="submit" class="inline-flex items-center px-3 py-1 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 active:bg-indigo-900 focus:outline-none focus:border-indigo-900 focus:ring ring-indigo-300 disabled:opacity-25 transition ease-in-out duration-150">
+                                        Save Notes
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
                 </div>
+
+                
                 
                 <!-- RIGHT COLUMN: TASK LISTS (Main Content) -->
                 <div class="lg:col-span-2 space-y-6">

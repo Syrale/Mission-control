@@ -37,7 +37,7 @@ class GameController extends Controller
             'timezone' => 'required|string',
             
             'reset_hour' => 'required|integer|min:0|max:23', 
-            'notes' => 'nullable|string',
+            'name' => 'required|string|max:255',
         ]);
 
         // 2. CREATE THE GAME

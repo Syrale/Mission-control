@@ -32,6 +32,28 @@ class Task extends Model
     }
 
     /**
+ * Check if the task is missed based on the RAW database value.
+ */
+    public function isMissed()
+    {
+        // 1. If it's completed, it's not missed.
+        if ($this->is_completed) {
+            return false;
+        }
+
+        // 2. Get the ACTUAL date stored in the DB (bypassing the Accessor)
+        $rawDueAt = $this->getRawOriginal('next_due_at');
+
+        // 3. If no date is stored, it can't be missed
+        if (! $rawDueAt) {
+            return false;
+        }
+
+        // 4. Check if that stored date is in the past
+        return Carbon::parse($rawDueAt)->isPast();
+    }
+
+    /**
      * Check if this task needs to be reset based on time.
      */
         /**

@@ -135,8 +135,8 @@ class DashboardController extends Controller
         // 8. MISSED TASKS (Keep your simpler logic or use explicit check)
         // Since we ran checkReset(), next_due_at should be correct.
         // We can simply check if next_due_at is in the past.
-        $missedTasks = $todoTasks->filter(function($t) use ($now) {
-            return $t->next_due_at && $t->next_due_at->isPast();
+        $missedTasks = $todoTasks->filter(function($t) {
+            return $t->isMissed();
         });
 
         // Return the NEW view path (dashboard.index)
